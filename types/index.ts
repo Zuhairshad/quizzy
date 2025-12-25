@@ -56,7 +56,59 @@ export interface Submission {
 export interface QuizResult {
   submission: Submission;
   quiz: Quiz;
-  correct_answers?: number;
+  selectedAnswers: (number | null)[];
   total_questions: number;
   percentage?: number;
+}
+
+// Analytics Types
+export interface QuizAnalytics {
+  topic: string;
+  difficulty: string;
+  questionsTotal: number;
+  questionsAnswered: number;
+  correctAnswers: number;
+  timeTakenSeconds: number;
+}
+
+export interface QuestionAnalytics {
+  topic: string;
+  difficulty: string;
+  questionId: number;
+  wasCorrect: boolean;
+  timeTakenSeconds: number;
+}
+
+export interface AnalyticsStats {
+  totalQuizzes: number;
+  topicStats: Record<string, {
+    completions: number;
+    averageScore: number;
+    averageTime: number;
+  }>;
+  recentCompletions: QuizAnalytics[];
+}
+
+// Leaderboard Types
+export interface LeaderboardEntry {
+  id: string;
+  username: string;
+  email?: string;
+  topic: string;
+  difficulty: string;
+  score: number;
+  totalQuestions: number;
+  timeTakenSeconds: number;
+  createdAt: string;
+  rank?: number;
+}
+
+export interface LeaderboardSubmission {
+  username: string;
+  email?: string;
+  topic: string;
+  difficulty: string;
+  score: number;
+  totalQuestions: number;
+  timeTakenSeconds: number;
 }

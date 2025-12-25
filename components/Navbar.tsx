@@ -14,12 +14,24 @@ export default function Navbar() {
                     </span>
                 </Link>
 
-                {/* Get Started Button */}
-                <Link href="/dashboard">
-                    <Button className="bg-gradient-to-r from-[#ffff00] to-[#f0ff00] text-black font-bold hover:from-[#f0ff00] hover:to-[#ccff00]">
-                        Get Started
-                    </Button>
-                </Link>
+                {/* Navigation Links */}
+                <div className="flex items-center space-x-4">
+                    <Link href="/dashboard">
+                        <Button variant="ghost" className="text-base">
+                            Dashboard
+                        </Button>
+                    </Link>
+                    <Link href="/analytics">
+                        <Button variant="ghost" className="text-base">
+                            📊 Analytics
+                        </Button>
+                    </Link>
+                    <Link href="/leaderboard">
+                        <Button variant="ghost" className="text-base">
+                            🏆 Leaderboard
+                        </Button>
+                    </Link>
+                </div>
             </div>
         </nav>
     )

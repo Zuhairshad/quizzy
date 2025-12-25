@@ -9,9 +9,12 @@ import { Button } from "@/components/ui/button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
+import { Badge } from "@/components/ui/badge"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { ArrowLeft, Maximize, CheckCircle, XCircle, ExternalLink } from "lucide-react"
+import { ArrowLeft, Maximize, CheckCircle, XCircle, ExternalLink, Clock } from "lucide-react"
 import { QUIZ_DATA } from "@/lib/quiz-data"
+import { useTimer } from "@/hooks/useTimer"
+import { toast } from "sonner"
 
 interface QuizPlayPageProps {
     params: Promise<{ topic: string; difficulty: string }>
@@ -36,16 +39,37 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
     const { topic, difficulty } = use(params)
     const QUESTIONS = QUIZ_DATA[topic]?.[difficulty] || []
 
+    // Timer (15 minutes)
+    const timer = useTimer({
+        durationMinutes: 15,
+        onTimeout: () => {
+            toast.warning("Time's Up!", {
+                description: 'Your quiz will be auto-submitted',
+            })
+            // Auto-submit when time runs out
+            handleAutoSubmit()
+        },
+        quizId: `${topic}_${difficulty}`,
+    })
+
     const enterFullscreen = async () => {
         try {
-            if (quizContainerRef.current) {
-                await quizContainerRef.current.requestFullscreen()
+            // Use document.documentElement instead of a container div
+            if (document.documentElement.requestFullscreen) {
+                await document.documentElement.requestFullscreen()
                 setIsFullscreen(true)
                 setShowFullscreenPrompt(false)
                 hasStartedQuizRef.current = true
+            } else {
+                toast.error("Fullscreen not supported", {
+                    description: "Your browser doesn't support fullscreen mode. Please use a modern browser."
+                })
             }
         } catch (error) {
             console.error("Fullscreen request failed:", error)
+            toast.error("Fullscreen failed", {
+                description: "Could not enter fullscreen mode. Please try again or check browser permissions."
+            })
         }
     }
 
@@ -163,17 +187,27 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
             setSelectedAnswer(submittedAnswers[currentQuestion + 1] ?? null)
             setShowFeedback(submittedAnswers[currentQuestion + 1] !== undefined)
         } else {
-            // Quiz complete - save results and navigate
-            sessionStorage.setItem("quiz_score", score.toString())
-            sessionStorage.setItem("quiz_total", QUESTIONS.length.toString())
-            sessionStorage.setItem("quiz_answers", JSON.stringify(submittedAnswers))
-
-            if (document.fullscreenElement) {
-                document.exitFullscreen()
-            }
-
-            router.push(`/quiz/${topic}/${difficulty}/results`)
+            finishQuiz()
         }
+    }
+
+    const finishQuiz = () => {
+        // Quiz complete - save results and navigate
+        sessionStorage.setItem("quiz_score", score.toString())
+        sessionStorage.setItem("quiz_total", QUESTIONS.length.toString())
+        sessionStorage.setItem("quiz_answers", JSON.stringify(submittedAnswers))
+
+        if (document.fullscreenElement) {
+            document.exitFullscreen()
+        }
+
+        timer.clearTimer()
+        router.push(`/quiz/${topic}/${difficulty}/results`)
+    }
+
+    const handleAutoSubmit = () => {
+        // Auto-submit all questions when timer runs out
+        finishQuiz()
     }
 
     const progress = ((Object.keys(submittedAnswers).length) / QUESTIONS.length) * 100
@@ -256,6 +290,34 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
                                         Exit Quiz
                                     </Button>
                                 </Link>
+                            </div>
+
+                            {/* Timer Display */}
+                            <div className="absolute top-4 right-4 z-50">
+                                <Card className={`border-2 ${timer.isVeryLowTime
+                                    ? 'bg-red-950/50 border-red-500'
+                                    : timer.isLowTime
+                                        ? 'bg-yellow-950/50 border-yellow-500'
+                                        : 'bg-[#ffff00]/10 border-[#ffff00]/30'
+                                    } backdrop-blur`}>
+                                    <CardContent className="py-2 px-4 flex items-center gap-3">
+                                        <Clock className={`w-5 h-5 ${timer.isVeryLowTime ? 'text-red-400' :
+                                            timer.isLowTime ? 'text-yellow-400' :
+                                                'text-[#ffff00]'
+                                            }`} />
+                                        <div className="flex flex-col">
+                                            <span className="text-xs text-[#f0ff00]/60">Time Left</span>
+                                            <Badge className={`text-lg font-mono ${timer.isVeryLowTime
+                                                ? 'bg-red-900 text-red-200 border-red-700'
+                                                : timer.isLowTime
+                                                    ? 'bg-yellow-900 text-yellow-200 border-yellow-700'
+                                                    : 'bg-[#ffff00]/20 text-[#ffff00] border-[#ffff00]/40'
+                                                }`}>
+                                                {timer.formattedTime}
+                                            </Badge>
+                                        </div>
+                                    </CardContent>
+                                </Card>
                             </div>
 
                             <div className="mb-6 mt-20">

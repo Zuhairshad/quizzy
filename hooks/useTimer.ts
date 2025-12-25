@@ -60,7 +60,8 @@ export function useTimer({ durationMinutes, onTimeout, quizId }: UseTimerProps) 
                 if (newTime <= 0 && !hasTimedOut.current) {
                     hasTimedOut.current = true
                     clearInterval(interval)
-                    onTimeout()
+                    // Defer callback to avoid setState during render
+                    setTimeout(() => onTimeout(), 0)
                     return 0
                 }
 

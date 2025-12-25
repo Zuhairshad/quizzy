@@ -54,19 +54,22 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
 
     const enterFullscreen = async () => {
         try {
+            console.log("🚀 Attempting to enter fullscreen...")
             // Use document.documentElement instead of a container div
             if (document.documentElement.requestFullscreen) {
                 await document.documentElement.requestFullscreen()
-                setIsFullscreen(true)
+                console.log("✅ Fullscreen request successful")
+                // State will be updated by fullscreenchange event listener
                 setShowFullscreenPrompt(false)
                 hasStartedQuizRef.current = true
             } else {
+                console.error("❌ Fullscreen API not supported")
                 toast.error("Fullscreen not supported", {
                     description: "Your browser doesn't support fullscreen mode. Please use a modern browser."
                 })
             }
         } catch (error) {
-            console.error("Fullscreen request failed:", error)
+            console.error("❌ Fullscreen request failed:", error)
             toast.error("Fullscreen failed", {
                 description: "Could not enter fullscreen mode. Please try again or check browser permissions."
             })

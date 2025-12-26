@@ -4,7 +4,9 @@ import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Navbar from "@/components/Navbar"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import BackButton from "@/components/BackButton"
+import { AlertTriangle } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
 interface QuizResultsPageProps {
@@ -17,8 +19,8 @@ const TOPIC_TITLES: Record<string, string> = {
     typescript: "TypeScript",
     nextjs: "Next.js",
     nodejs: "Node.js",
-  nestjs: "NestJS",
-  mongodb: "MongoDB"
+    nestjs: "NestJS",
+    mongodb: "MongoDB"
 }
 
 const DIFFICULTY_TITLES: Record<string, string> = {
@@ -83,9 +85,9 @@ export default function QuizResultsPage({ params }: QuizResultsPageProps) {
     }, [topic, difficulty, router])
 
     const getScoreColor = (percentage: number) => {
-        if (percentage >= 80) return "text-[#ccff00]"
-        if (percentage >= 60) return "text-[#ffff00]"
-        return "text-[#f0ff00]"
+        if (percentage >= 80) return "text-green-800 dark:text-green-600"
+        if (percentage >= 60) return "text-primary"
+        return "text-red-800 dark:text-red-600"
     }
 
     const getScoreMessage = (percentage: number) => {
@@ -95,18 +97,20 @@ export default function QuizResultsPage({ params }: QuizResultsPageProps) {
     }
 
     return (
-        <div className="min-h-screen bg-black">
+        <div className="min-h-screen bg-background overflow-x-hidden">
             <Navbar />
 
-            <main className="container mx-auto px-4 py-12">
+            <main className="md:ml-64 px-4 py-6 md:py-12 pt-16 md:pt-12 w-auto">
                 <div className="max-w-3xl mx-auto">
-                    <Card className="border-[#ffff00]/30 bg-[#ffff00]/5 backdrop-blur-xl">
+                    <BackButton href={`/quiz/${topic}`} label="Back to Quiz" />
+
+                    <Card className="border-border bg-card shadow-lg">
                         <CardHeader className="text-center">
-                            <div className="mb-4 text-6xl">{percentage >= 80 ? "🎉" : percentage >= 60 ? "👍" : "💪"}</div>
-                            <CardTitle className="text-[#ffff00] text-3xl mb-2">
+                            <div className="mb-4 text-4xl md:text-6xl">{percentage >= 80 ? "🎉" : percentage >= 60 ? "👍" : "💪"}</div>
+                            <CardTitle className="text-foreground text-2xl md:text-3xl mb-2">
                                 Quiz Complete!
                             </CardTitle>
-                            <CardDescription className="text-[#f0ff00] text-lg">
+                            <CardDescription className="text-muted-foreground text-sm md:text-lg">
                                 {getScoreMessage(percentage)}
                             </CardDescription>
                         </CardHeader>
@@ -115,53 +119,80 @@ export default function QuizResultsPage({ params }: QuizResultsPageProps) {
                             {/* Score Display */}
                             <div className="text-center space-y-4">
                                 <div>
-                                    <p className="text-sm text-[#f0ff00]/60 mb-2">Your Score</p>
-                                    <p className={`text-6xl font-bold ${getScoreColor(percentage)}`}>
+                                    <p className="text-xs md:text-sm text-muted-foreground mb-2">Your Score</p>
+                                    <p className={`text-4xl md:text-6xl font-bold ${getScoreColor(percentage)}`}>
                                         {score}/{total}
                                     </p>
-                                    <p className="text-2xl text-[#f0ff00] mt-2">{percentage}%</p>
+                                    <p className="text-xl md:text-2xl text-primary mt-2">{percentage}%</p>
                                 </div>
                             </div>
 
                             {/* Breakdown */}
                             <div className="grid gap-4 md:grid-cols-2">
-                                <div className="rounded-lg border border-[#ccff00]/30 bg-[#ccff00]/5 p-4 text-center">
-                                    <p className="text-sm text-[#f0ff00]/60 mb-1">Correct</p>
-                                    <p className="text-3xl font-bold text-[#ccff00]">✓ {score}</p>
+                                <div className="rounded-lg border border-green-800 dark:border-green-600 bg-green-50 dark:bg-green-950/30 p-4 text-center">
+                                    <p className="text-sm text-muted-foreground mb-1">Correct</p>
+                                    <p className="text-3xl font-bold text-green-800 dark:text-green-600">✓ {score}</p>
                                 </div>
-                                <div className="rounded-lg border border-[#f0ff00]/30 bg-[#f0ff00]/5 p-4 text-center">
-                                    <p className="text-sm text-[#f0ff00]/60 mb-1">Incorrect</p>
-                                    <p className="text-3xl font-bold text-[#f0ff00]">✗ {total - score}</p>
+                                <div className="rounded-lg border border-red-800 dark:border-red-600 bg-red-50 dark:bg-red-950/30 p-4 text-center">
+                                    <p className="text-sm text-muted-foreground mb-1">Incorrect</p>
+                                    <p className="text-3xl font-bold text-red-800 dark:text-red-600">✗ {total - score}</p>
                                 </div>
                             </div>
 
                             {/* Email Confirmation */}
-                            <div className="rounded-lg border border-[#ffff00]/20 bg-[#ffff00]/5 p-4">
-                                <p className="text-sm text-[#f0ff00] text-center">
-                                    📧 Results sent to: <span className="font-semibold text-[#ffff00]">{email}</span>
+                            <div className="rounded-lg border border-border bg-muted p-4">
+                                <p className="text-sm text-foreground text-center">
+                                    📧 Results sent to: <span className="font-semibold text-primary">{email}</span>
                                 </p>
                             </div>
-
+                        </CardContent>
+                        <CardFooter>
                             {/* Actions */}
-                            <div className="flex flex-col sm:flex-row gap-4">
-                                <Link href={`/quiz/${topic}`} className="flex-1">
+                            <div className="flex gap-4 w-full">
+                                <Link href={`/quiz/${topic}/${difficulty}/play`} className="flex-1">
                                     <Button
-                                        variant="outline"
-                                        className="w-full border-[#ffff00]/30 text-[#f0ff00] hover:bg-[#ffff00]/10"
+                                        onClick={async () => {
+                                            // Reset progress if retaking
+                                            try {
+                                                await fetch(`/api/progress?quizId=${topic}_${difficulty}`, { method: 'DELETE' })
+                                            } catch (e) {
+                                                console.error("Failed to reset progress", e)
+                                            }
+                                        }}
+                                        className="w-full bg-gradient-to-r from-blue-600 to-primary hover:from-blue-700 hover:to-blue-600 text-white font-bold py-6 text-lg"
                                     >
-                                        Try Different Difficulty
+                                        {percentage < 80 ? "Reset & Try Again" : "Play Again"}
                                     </Button>
                                 </Link>
                                 <Link href="/dashboard" className="flex-1">
-                                    <Button className="w-full bg-gradient-to-r from-[#ffff00] to-[#f0ff00] text-black font-bold hover:from-[#f0ff00] hover:to-[#ccff00]">
+                                    <Button
+                                        variant="outline"
+                                        className="w-full border-primary/30 hover:bg-primary/10 text-primary hover:text-foreground font-bold py-6 text-lg dark:bg-black/40"
+                                    >
                                         Back to Dashboard
                                     </Button>
                                 </Link>
                             </div>
-                        </CardContent>
+                        </CardFooter>
                     </Card>
+
+                    {/* Low Score Warning */}
+                    {percentage < 80 && (
+                        <div className="mt-6 p-4 rounded-xl glass-card border-l-4 border-l-amber-500 bg-amber-500/10">
+                            <div className="flex gap-3">
+                                <AlertTriangle className="text-amber-500 w-6 h-6 shrink-0" />
+                                <div>
+                                    <h3 className="font-bold text-amber-500 mb-1">Score under 80%</h3>
+                                    <p className="text-muted-foreground text-sm">
+                                        We recommend reviewing the material and trying again to master this topic.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </main>
         </div>
     )
 }
+

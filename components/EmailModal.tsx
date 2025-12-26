@@ -40,19 +40,19 @@ export default function EmailModal({ open, onClose, onSubmit, quizTopic }: Email
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="border-[#ffff00]/30 bg-black">
+            <DialogContent className="border-border bg-card">
                 <DialogHeader>
-                    <DialogTitle className="text-[#ffff00] text-2xl">
+                    <DialogTitle className="text-foreground text-2xl">
                         Ready to start {quizTopic} Quiz?
                     </DialogTitle>
-                    <DialogDescription className="text-[#f0ff00]">
+                    <DialogDescription className="text-muted-foreground">
                         We'll send your results to your email
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4 py-4">
                     <div className="space-y-2">
-                        <Label htmlFor="email" className="text-[#ffff00]">
+                        <Label htmlFor="email" className="text-foreground">
                             Gmail Address
                         </Label>
                         <Input
@@ -64,21 +64,21 @@ export default function EmailModal({ open, onClose, onSubmit, quizTopic }: Email
                                 setEmail(e.target.value)
                                 setError("")
                             }}
-                            className="border-[#ffff00]/30 bg-[#ffff00]/5 text-[#ffff00] placeholder:text-[#f0ff00]/50"
+                            className="border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-primary"
                             onKeyPress={(e) => e.key === "Enter" && handleSubmit()}
                         />
-                        {error && <p className="text-sm text-red-400">{error}</p>}
+                        {error && <p className="text-sm text-red-800 dark:text-red-600">{error}</p>}
                     </div>
 
-                    <div className="space-y-2 text-sm text-[#f0ff00]">
+                    <div className="space-y-2 text-sm text-muted-foreground">
                         <p className="flex items-center gap-2">
-                            <span className="text-[#ffff00]">✓</span> Get instant results
+                            <span className="text-green-800 dark:text-green-600">✓</span> Get instant results
                         </p>
                         <p className="flex items-center gap-2">
-                            <span className="text-[#ffff00]">✓</span> Receive detailed breakdown
+                            <span className="text-green-800 dark:text-green-600">✓</span> Receive detailed breakdown
                         </p>
                         <p className="flex items-center gap-2">
-                            <span className="text-[#ffff00]">✓</span> Access helping resources
+                            <span className="text-green-800 dark:text-green-600">✓</span> Access helping resources
                         </p>
                     </div>
                 </div>
@@ -87,13 +87,13 @@ export default function EmailModal({ open, onClose, onSubmit, quizTopic }: Email
                     <Button
                         variant="outline"
                         onClick={onClose}
-                        className="border-[#ffff00]/30 text-[#f0ff00] hover:bg-[#ffff00]/10"
+                        className="border-border text-foreground hover:bg-muted"
                     >
                         Cancel
                     </Button>
                     <Button
                         onClick={handleSubmit}
-                        className="bg-gradient-to-r from-[#ffff00] to-[#f0ff00] text-black font-bold hover:from-[#f0ff00] hover:to-[#ccff00]"
+                        className="bg-primary text-primary-foreground font-bold hover:bg-primary/90"
                     >
                         Start Quiz
                     </Button>

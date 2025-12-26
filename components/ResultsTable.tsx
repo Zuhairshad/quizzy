@@ -48,7 +48,7 @@ export default function ResultsTable({ submissions, questions }: ResultsTablePro
 
     const getScoreBadgeColor = (percentage: number) => {
         if (percentage >= 80) return 'bg-green-950 text-green-300 border-green-800'
-        if (percentage >= 50) return 'bg-yellow-950 text-yellow-300 border-yellow-800'
+        if (percentage >= 50) return 'bg-primary/20 text-primary border-primary/50'
         return 'bg-red-950 text-red-300 border-red-800'
     }
 

@@ -1,6 +1,6 @@
 'use server'
 
-import { auth } from '@clerk/nextjs/server'
+import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { revalidatePath } from 'next/cache'
 
@@ -9,9 +9,10 @@ import { revalidatePath } from 'next/cache'
  */
 export async function submitQuiz(quizId: string, answers: Record<string, number>) {
     try {
-        const { userId } = await auth()
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
 
-        if (!userId) {
+        if (!user) {
             return { error: 'You must be logged in to submit a quiz' }
         }
 
@@ -19,7 +20,7 @@ export async function submitQuiz(quizId: string, answers: Record<string, number>
         // This performs ALL grading on the server - client never sees correct answers
         const { data, error } = await supabaseAdmin.rpc('grade_quiz', {
             p_quiz_id: quizId,
-            p_user_id: userId,
+            p_user_id: user.id,
             p_answers: answers,
         })
 
@@ -54,9 +55,10 @@ export async function submitQuiz(quizId: string, answers: Record<string, number>
  * Get quiz results for a submission
  */
 export async function getQuizResults(quizId: string) {
-    const { userId } = await auth()
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
 
-    if (!userId) {
+    if (!user) {
         return { error: 'You must be logged in' }
     }
 
@@ -72,7 +74,7 @@ export async function getQuizResults(quizId: string) {
         .from('submissions')
         .select('*')
         .eq('quiz_id', quizId)
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .eq('status', 'completed')
         .order('completed_at', { ascending: false })
         .limit(1)

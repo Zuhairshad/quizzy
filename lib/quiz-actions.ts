@@ -1,36 +1,20 @@
 'use server'
 
-import { auth } from '@clerk/nextjs/server'
+import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { revalidatePath } from 'next/cache'
+import { quizSchema, type QuizFormData } from '@/lib/quiz-schema'
 import { z } from 'zod'
-
-// Zod schema for question validation
-const questionSchema = z.object({
-    question_text: z.string().min(5, 'Question must be at least 5 characters'),
-    options: z.array(z.string().min(1, 'Option cannot be empty')).length(4, 'Must have exactly 4 options'),
-    correct_option_index: z.number().min(0).max(3, 'Correct answer must be between 0 and 3'),
-})
-
-// Zod schema for quiz validation
-export const quizSchema = z.object({
-    title: z.string().min(5, 'Title must be at least 5 characters'),
-    description: z.string().min(10, 'Description must be at least 10 characters'),
-    duration_minutes: z.number().min(1).optional(),
-    passing_score: z.number().min(1).optional(),
-    questions: z.array(questionSchema).min(1, 'Quiz must have at least 1 question'),
-})
-
-export type QuizFormData = z.infer<typeof quizSchema>
 
 /**
  * Server action to create a new quiz with questions
  */
 export async function createQuiz(data: QuizFormData) {
     try {
-        const { userId } = await auth()
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
 
-        if (!userId) {
+        if (!user) {
             return { error: 'You must be logged in to create a quiz' }
         }
 
@@ -38,7 +22,7 @@ export async function createQuiz(data: QuizFormData) {
         const { data: profile } = await supabaseAdmin
             .from('profiles')
             .select('role')
-            .eq('clerk_user_id', userId)
+            .eq('id', user.id)
             .single()
 
         if (profile?.role !== 'admin') {
@@ -54,7 +38,7 @@ export async function createQuiz(data: QuizFormData) {
             .insert({
                 title: validatedData.title,
                 description: validatedData.description,
-                created_by: userId,
+                created_by: user.id,
                 duration_minutes: validatedData.duration_minutes,
                 passing_score: validatedData.passing_score,
                 total_questions: validatedData.questions.length,
@@ -111,18 +95,25 @@ export async function createQuiz(data: QuizFormData) {
  * Server action to get all quizzes
  */
 export async function getQuizzes() {
-    const { data: quizzes, error } = await supabaseAdmin
-        .from('quizzes')
-        .select(`
-      *,
-      profiles:created_by (full_name, email)
-    `)
-        .order('created_at', { ascending: false })
+    try {
+        const supabase = await createClient()
+        const { data: quizzes, error } = await supabase
+            .from('quizzes')
+            .select(`
+                *,
+                profiles:created_by (full_name, email)
+            `)
+            .eq('is_active', true)
+            .order('created_at', { ascending: false })
 
-    if (error) {
-        console.error('Error fetching quizzes:', error)
-        return { error: error.message }
+        if (error) {
+            console.error('Error fetching quizzes:', error)
+            return { error: error.message }
+        }
+
+        return { quizzes: quizzes || [] }
+    } catch (error: any) {
+        console.error('Unexpected error fetching quizzes:', error)
+        return { error: error.message || 'Failed to fetch quizzes' }
     }
-
-    return { quizzes }
 }

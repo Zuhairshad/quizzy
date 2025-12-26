@@ -16,7 +16,7 @@ export function useQuestionTimer({
 }: UseQuestionTimerOptions) {
     const [timeLeft, setTimeLeft] = useState(timeLimit);
     const [isRunning, setIsRunning] = useState(autoStart);
-    const intervalRef = useRef<NodeJS.Timeout>();
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
     const hasExpired = useRef(false);
 
     const start = useCallback(() => {

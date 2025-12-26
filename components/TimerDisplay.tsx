@@ -2,6 +2,8 @@
 
 import { motion } from "framer-motion"
 import { Clock } from "lucide-react"
+import { useTheme } from "next-themes"
+import { useEffect, useState } from "react"
 
 interface TimerDisplayProps {
     timeLeft: number
@@ -9,19 +11,30 @@ interface TimerDisplayProps {
 }
 
 export function TimerDisplay({ timeLeft, totalTime }: TimerDisplayProps) {
+    const { theme } = useTheme()
+    const [mounted, setMounted] = useState(false)
+    
+    useEffect(() => {
+        setMounted(true)
+    }, [])
+
     const percentage = (timeLeft / totalTime) * 100
     const isUrgent = timeLeft <= 10
     const isWarning = timeLeft <= 20 && timeLeft > 10
 
     const getColor = () => {
         if (isUrgent) return "text-red-500"
-        if (isWarning) return "text-yellow-500"
+        if (isWarning) return "text-primary"
         return "text-green-500"
     }
 
     const getStrokeColor = () => {
         if (isUrgent) return "#ef4444"
-        if (isWarning) return "#eab308"
+        if (isWarning) {
+            // Use primary color - black in light mode, white in dark mode
+            if (!mounted) return "#000000" // Default to black during SSR
+            return theme === 'dark' ? '#ffffff' : '#000000'
+        }
         return "#22c55e"
     }
 

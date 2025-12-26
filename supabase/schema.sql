@@ -1,6 +1,6 @@
 -- ============================================
 -- Quiz Web App - Supabase Database Schema  
--- Updated for Clerk Authentication
+-- Using Supabase Authentication
 -- ============================================
 
 -- ============================================
@@ -14,9 +14,9 @@ CREATE TYPE user_role AS ENUM ('admin', 'intern');
 -- 2. TABLES
 -- ============================================
 
--- Profiles table (synced from Clerk via webhooks)
+-- Profiles table (linked to Supabase auth.users)
 CREATE TABLE profiles (
-  clerk_user_id TEXT PRIMARY KEY,
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT UNIQUE NOT NULL,
   role user_role NOT NULL DEFAULT 'intern',
   full_name TEXT NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE quizzes (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   title TEXT NOT NULL,
   description TEXT NOT NULL,
-  created_by TEXT REFERENCES profiles(clerk_user_id) ON DELETE CASCADE NOT NULL,
+  created_by UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   total_questions INTEGER DEFAULT 0,
   duration_minutes INTEGER,
   passing_score INTEGER,
@@ -52,7 +52,7 @@ CREATE TABLE questions (
 -- Submissions table
 CREATE TABLE submissions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id TEXT REFERENCES profiles(clerk_user_id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   quiz_id UUID REFERENCES quizzes(id) ON DELETE CASCADE NOT NULL,
   answers JSONB NOT NULL, -- Map of question_id -> selected_option_index
   score INTEGER,
@@ -77,13 +77,26 @@ ALTER TABLE submissions ENABLE ROW LEVEL SECURITY;
 -- PROFILES RLS POLICIES
 -- ---------------------------------------------
 
--- Anyone authenticated can read all profiles
-CREATE POLICY "Authenticated users can view profiles"
+-- Users can view all profiles
+CREATE POLICY "Users can view profiles"
   ON profiles FOR SELECT
   TO authenticated
   USING (true);
 
--- Service role can insert/update/delete profiles (for webhook)
+-- Users can insert their own profile
+CREATE POLICY "Users can insert their own profile"
+  ON profiles FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = id);
+
+-- Users can update their own profile
+CREATE POLICY "Users can update their own profile"
+  ON profiles FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
+
+-- Service role can manage all profiles
 CREATE POLICY "Service role can manage profiles"
   ON profiles FOR ALL
   TO service_role
@@ -100,7 +113,38 @@ CREATE POLICY "Authenticated users can view active quizzes"
   TO authenticated
   USING (is_active = true);
 
--- Admin users can manage quizzes (determined by Clerk metadata)
+-- Admins can create quizzes
+CREATE POLICY "Admins can create quizzes"
+  ON quizzes FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.role = 'admin'
+    )
+  );
+
+-- Admins can update/delete their own quizzes
+CREATE POLICY "Admins can manage quizzes"
+  ON quizzes FOR ALL
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.role = 'admin'
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.role = 'admin'
+    )
+  );
+
+-- Service role can manage quizzes
 CREATE POLICY "Service role can manage quizzes"
   ON quizzes FOR ALL
   TO service_role
@@ -111,6 +155,31 @@ CREATE POLICY "Service role can manage quizzes"
 -- QUESTIONS RLS POLICIES
 -- ---------------------------------------------
 
+-- Authenticated users can view questions
+CREATE POLICY "Authenticated users can view questions"
+  ON questions FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- Admins can manage questions
+CREATE POLICY "Admins can manage questions"
+  ON questions FOR ALL
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.role = 'admin'
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.role = 'admin'
+    )
+  );
+
 -- Service role can manage questions
 CREATE POLICY "Service role can manage questions"
   ON questions FOR ALL
@@ -118,15 +187,33 @@ CREATE POLICY "Service role can manage questions"
   USING (true)
   WITH CHECK (true);
 
--- Authenticated users can view questions (but not correct answers via view)
-CREATE POLICY "Authenticated users can view questions"
-  ON questions FOR SELECT
-  TO authenticated
-  USING (true);
-
 -- ---------------------------------------------
 -- SUBMISSIONS RLS POLICIES
 -- ---------------------------------------------
+
+-- Users can view their own submissions
+CREATE POLICY "Users can view own submissions"
+  ON submissions FOR SELECT
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- Users can create their own submissions
+CREATE POLICY "Users can create submissions"
+  ON submissions FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+-- Admins can view all submissions
+CREATE POLICY "Admins can view all submissions"
+  ON submissions FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.role = 'admin'
+    )
+  );
 
 -- Service role can manage all submissions
 CREATE POLICY "Service role can manage submissions"
@@ -134,13 +221,6 @@ CREATE POLICY "Service role can manage submissions"
   TO service_role
   USING (true)
   WITH CHECK (true);
-
--- Authenticated users can view their own submissions
--- Note: We'll verify user_id in application code against Clerk user ID
-CREATE POLICY "Authenticated users can view submissions"
-  ON submissions FOR SELECT
-  TO authenticated
-  USING (true);
 
 -- ============================================
 -- 4. SECURE INTERN VIEW (Anti-Cheating Layer)
@@ -167,7 +247,7 @@ GRANT SELECT ON intern_questions TO authenticated;
 -- Function to grade a quiz submission
 CREATE OR REPLACE FUNCTION grade_quiz(
   p_quiz_id UUID,
-  p_user_id TEXT,
+  p_user_id UUID,
   p_answers JSONB
 )
 RETURNS TABLE(
@@ -324,8 +404,44 @@ GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 
+-- ============================================
+-- 8. AUTO-CREATE PROFILE TRIGGER
+-- ============================================
+
+-- Trigger to automatically create profile when a user signs up
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name, role)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', 'User'),
+    COALESCE((NEW.raw_user_meta_data->>'role')::user_role, 'intern')
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create trigger that fires after a user is inserted into auth.users
+CREATE OR REPLACE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
+
+-- ============================================
+-- SETUP COMPLETE
+-- ============================================
+
+-- Grant necessary permissions
+GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+
 -- Comments for documentation
-COMMENT ON TABLE profiles IS 'User profiles synced from Clerk via webhooks';
+COMMENT ON TABLE profiles IS 'User profiles linked to Supabase auth.users';
 COMMENT ON TABLE quizzes IS 'Quiz metadata created by admins';
 COMMENT ON TABLE questions IS 'Quiz questions with correct answers (protected from interns)';
 COMMENT ON TABLE submissions IS 'User quiz attempts and scores';

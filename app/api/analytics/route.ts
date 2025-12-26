@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { createClient } from "@/lib/supabase/server"
 import { QuizAnalytics, QuestionAnalytics, AnalyticsStats } from '@/types'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url)
         const type = searchParams.get('type') || 'stats'
 
-        const supabase = createClient()
+        const supabase = await createClient()
 
         if (type === 'stats') {
             // Get aggregated statistics

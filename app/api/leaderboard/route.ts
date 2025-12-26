@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { createClient } from "@/lib/supabase/server"
 import { LeaderboardSubmission, LeaderboardEntry } from '@/types'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
         const email = searchParams.get('email')
         const limit = parseInt(searchParams.get('limit') || '100')
 
-        const supabase = createClient()
+        const supabase = await createClient()
 
         let query = supabase
             .from('leaderboard')

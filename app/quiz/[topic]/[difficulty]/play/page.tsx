@@ -166,6 +166,54 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
         }
     }
 
+    // Load progress from DB
+    useEffect(() => {
+        const loadProgress = async () => {
+            try {
+                const res = await fetch(`/api/progress?quizId=${topic}_${difficulty}`)
+                const data = await res.json()
+
+                if (data.data) {
+                    const { current_question_index, answers, score: savedScore } = data.data
+                    setCurrentQuestion(current_question_index)
+                    setSubmittedAnswers(answers || {})
+                    setScore(savedScore)
+
+                    // If resuming, check if current question was answered
+                    if (answers && answers[current_question_index] !== undefined) {
+                        setSelectedAnswer(answers[current_question_index])
+                        setShowFeedback(true)
+                    }
+
+                    toast.info("Welcome back!", {
+                        description: "Resumed your quiz progress."
+                    })
+                }
+            } catch (error) {
+                console.error("Failed to load progress", error)
+            }
+        }
+
+        loadProgress()
+    }, [topic, difficulty])
+
+    const saveProgress = async (newAnswers: Record<number, number>, newScore: number, newQuestionIndex: number) => {
+        try {
+            await fetch('/api/progress', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    quizId: `${topic}_${difficulty}`,
+                    currentQuestionIndex: newQuestionIndex,
+                    answers: newAnswers,
+                    score: newScore
+                })
+            })
+        } catch (error) {
+            console.error("Failed to save progress", error)
+        }
+    }
+
     const handleSubmitAnswer = () => {
         if (selectedAnswer === null) return
 
@@ -173,38 +221,58 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
         const isCorrect = selectedAnswer === question.correctAnswer
 
         // Lock in the answer
-        setSubmittedAnswers({ ...submittedAnswers, [currentQuestion]: selectedAnswer })
+        const newAnswers = { ...submittedAnswers, [currentQuestion]: selectedAnswer }
+        setSubmittedAnswers(newAnswers)
 
         // Update score if correct
+        let newScore = score
         if (isCorrect) {
-            setScore(score + 1)
+            newScore = score + 1
+            setScore(newScore)
         }
 
         // Show feedback
         setShowFeedback(true)
+
+        // Save progress
+        saveProgress(newAnswers, newScore, currentQuestion)
     }
 
+    // Also save when moving to next question to update index
     const handleNextQuestion = () => {
         if (currentQuestion < QUESTIONS.length - 1) {
-            setCurrentQuestion(currentQuestion + 1)
-            setSelectedAnswer(submittedAnswers[currentQuestion + 1] ?? null)
-            setShowFeedback(submittedAnswers[currentQuestion + 1] !== undefined)
+            const nextQuestion = currentQuestion + 1
+            setCurrentQuestion(nextQuestion)
+            setSelectedAnswer(submittedAnswers[nextQuestion] ?? null)
+            setShowFeedback(submittedAnswers[nextQuestion] !== undefined)
+
+            // Update current index in DB
+            saveProgress(submittedAnswers, score, nextQuestion)
         } else {
             finishQuiz()
         }
     }
 
-    const finishQuiz = () => {
+    const finishQuiz = async () => {
         // Quiz complete - save results and navigate
         sessionStorage.setItem("quiz_score", score.toString())
         sessionStorage.setItem("quiz_total", QUESTIONS.length.toString())
         sessionStorage.setItem("quiz_answers", JSON.stringify(submittedAnswers))
+
 
         if (document.fullscreenElement) {
             document.exitFullscreen()
         }
 
         timer.clearTimer()
+
+        // Clear progress from DB
+        try {
+            await fetch(`/api/progress?quizId=${topic}_${difficulty}`, { method: 'DELETE' })
+        } catch (e) {
+            console.error("Failed to clear progress", e)
+        }
+
         router.push(`/quiz/${topic}/${difficulty}/results`)
     }
 
@@ -221,9 +289,11 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
 
     if (!question) {
         return (
-            <div className="min-h-screen bg-black flex items-center justify-center">
+            <div className="min-h-screen bg-background flex items-center justify-center">
                 <Navbar />
-                <p className="text-[#ffff00]">Quiz not found</p>
+                <div className="md:ml-64 px-4 pt-16 md:pt-0">
+                    <p className="text-primary">Quiz not found</p>
+                </div>
             </div>
         )
     }
@@ -231,7 +301,7 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
     return (
         <div
             ref={quizContainerRef}
-            className="min-h-screen bg-black select-none"
+            className="min-h-screen bg-background select-none"
             style={{
                 userSelect: 'none',
                 WebkitUserSelect: 'none',
@@ -245,18 +315,18 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
         >
             {!isFullscreen && <Navbar />}
 
-            <main className="container mx-auto px-4 py-8">
+            <main className={!isFullscreen ? "md:ml-64 px-4 py-6 md:py-8 pt-16 md:pt-8 w-auto" : "container mx-auto px-4 py-6 md:py-8"}>
                 <div className="max-w-3xl mx-auto">
                     {showFullscreenPrompt && (
-                        <Card className="border-[#ffff00]/30 bg-[#ffff00]/10 backdrop-blur-xl mb-6">
+                        <Card className="border-border bg-muted mb-6">
                             <CardHeader>
-                                <CardTitle className="text-[#ffff00] flex items-center gap-2">
+                                <CardTitle className="text-primary flex items-center gap-2">
                                     <Maximize className="h-6 w-6" />
                                     Fullscreen Mode Required
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="space-y-2 text-[#f0ff00] text-sm">
+                                <div className="space-y-2 text-foreground text-sm">
                                     <p>⚠️ <strong>Quiz Rules:</strong></p>
                                     <ul className="list-disc list-inside space-y-1 ml-4">
                                         <li>Quiz must be in fullscreen</li>
@@ -267,7 +337,7 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
                                 </div>
                                 <Button
                                     onClick={enterFullscreen}
-                                    className="w-full bg-gradient-to-r from-[#ffff00] to-[#f0ff00] text-black font-bold text-lg py-6"
+                                    className="w-full bg-gradient-to-r from-[#4ADE80] to-[#2DD4BF] text-white font-bold text-lg py-6 hover:opacity-90"
                                 >
                                     <Maximize className="mr-2 h-5 w-5" />
                                     Enter Fullscreen & Start Quiz
@@ -282,7 +352,7 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
                                 <Link href={`/quiz/${topic}/${difficulty}`}>
                                     <Button
                                         variant="ghost"
-                                        className="border border-[#ffff00]/20 text-[#f0ff00] hover:bg-[#ffff00]/10"
+                                        className="border border-border text-foreground hover:bg-muted bg-card"
                                         onClick={() => {
                                             if (document.fullscreenElement) {
                                                 document.exitFullscreen()
@@ -298,23 +368,23 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
                             {/* Timer Display */}
                             <div className="absolute top-4 right-4 z-50">
                                 <Card className={`border-2 ${timer.isVeryLowTime
-                                    ? 'bg-red-950/50 border-red-500'
+                                    ? 'bg-red-50 dark:bg-red-950/30 border-red-800 dark:border-red-600'
                                     : timer.isLowTime
-                                        ? 'bg-yellow-950/50 border-yellow-500'
-                                        : 'bg-[#ffff00]/10 border-[#ffff00]/30'
+                                        ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-500 dark:border-amber-600'
+                                        : 'bg-card border-primary'
                                     } backdrop-blur`}>
                                     <CardContent className="py-2 px-4 flex items-center gap-3">
-                                        <Clock className={`w-5 h-5 ${timer.isVeryLowTime ? 'text-red-400' :
-                                            timer.isLowTime ? 'text-yellow-400' :
-                                                'text-[#ffff00]'
+                                        <Clock className={`w-5 h-5 ${timer.isVeryLowTime ? 'text-red-800 dark:text-red-600' :
+                                            timer.isLowTime ? 'text-amber-600 dark:text-amber-500' :
+                                                'text-primary'
                                             }`} />
                                         <div className="flex flex-col">
-                                            <span className="text-xs text-[#f0ff00]/60">Time Left</span>
+                                            <span className="text-xs text-muted-foreground">Time Left</span>
                                             <Badge className={`text-lg font-mono ${timer.isVeryLowTime
-                                                ? 'bg-red-900 text-red-200 border-red-700'
+                                                ? 'bg-red-100 dark:bg-red-950/50 text-red-800 dark:text-red-600 border-red-300 dark:border-red-600'
                                                 : timer.isLowTime
-                                                    ? 'bg-yellow-900 text-yellow-200 border-yellow-700'
-                                                    : 'bg-[#ffff00]/20 text-[#ffff00] border-[#ffff00]/40'
+                                                    ? 'bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-500 border-amber-300 dark:border-amber-600'
+                                                    : 'bg-primary/20 text-primary border-primary'
                                                 }`}>
                                                 {timer.formattedTime}
                                             </Badge>
@@ -325,22 +395,22 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
 
                             <div className="mb-6 mt-20">
                                 <div className="flex items-center justify-between mb-2">
-                                    <h2 className="text-sm font-medium text-[#f0ff00]">
+                                    <h2 className="text-sm font-medium text-foreground">
                                         Question {currentQuestion + 1} of {QUESTIONS.length}
                                     </h2>
-                                    <span className="text-sm text-[#f0ff00]/60">
+                                    <span className="text-sm text-muted-foreground">
                                         Score: {score}/{QUESTIONS.length}
                                     </span>
                                 </div>
                                 <Progress value={progress} className="h-2" />
                             </div>
 
-                            <Card className="border-[#ffff00]/30 bg-[#ffff00]/5 backdrop-blur-xl mb-6">
+                            <Card className="border-border bg-card shadow-lg mb-6">
                                 <CardHeader>
-                                    <CardTitle className="text-[#ffff00] text-xl">
+                                    <CardTitle className="text-foreground text-xl">
                                         {question.question}
                                     </CardTitle>
-                                    <CardDescription className="text-[#f0ff00]">
+                                    <CardDescription className="text-muted-foreground">
                                         Select one answer
                                     </CardDescription>
                                 </CardHeader>
@@ -362,12 +432,12 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
                                                     <div
                                                         key={index}
                                                         className={`flex items-center space-x-3 p-4 rounded-lg border-2 transition-all ${showAsCorrect
-                                                            ? "border-green-500 bg-green-500/20"
+                                                            ? "border-green-800 dark:border-green-600 bg-green-50 dark:bg-green-950/30"
                                                             : showAsIncorrect
-                                                                ? "border-red-500 bg-red-500/20"
+                                                                ? "border-red-800 dark:border-red-600 bg-red-50 dark:bg-red-950/30"
                                                                 : selectedAnswer === index
-                                                                    ? "border-[#ffff00] bg-[#ffff00]/10"
-                                                                    : "border-[#ffff00]/20 hover:border-[#ffff00]/40"
+                                                                    ? "border-primary bg-primary/10"
+                                                                    : "border-border hover:border-primary"
                                                             } ${isQuestionAnswered ? "cursor-not-allowed opacity-80" : "cursor-pointer"}`}
                                                         onClick={() => !isQuestionAnswered && handleAnswerSelect(index)}
                                                     >
@@ -378,9 +448,9 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
                                                         />
                                                         <Label
                                                             htmlFor={`option-${index}`}
-                                                            className={`flex-1 cursor-pointer font-normal ${showAsCorrect ? "text-green-400 font-semibold" :
-                                                                showAsIncorrect ? "text-red-400 font-semibold" :
-                                                                    "text-[#f0ff00]"
+                                                            className={`flex-1 cursor-pointer font-normal ${showAsCorrect ? "text-green-800 dark:text-green-600 font-semibold" :
+                                                                showAsIncorrect ? "text-red-800 dark:text-red-600 font-semibold" :
+                                                                    "text-foreground"
                                                                 }`}
                                                         >
                                                             {option}
@@ -399,14 +469,14 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
                                         <Button
                                             onClick={handleSubmitAnswer}
                                             disabled={selectedAnswer === null}
-                                            className="bg-gradient-to-r from-[#ffff00] to-[#f0ff00] text-black font-bold hover:from-[#f0ff00] hover:to-[#ccff00]"
+                                            className="bg-primary text-primary-foreground font-bold hover:bg-primary/90"
                                         >
                                             Submit Answer
                                         </Button>
                                     ) : (
                                         <Button
                                             onClick={handleNextQuestion}
-                                            className="bg-gradient-to-r from-[#ffff00] to-[#f0ff00] text-black font-bold hover:from-[#f0ff00] hover:to-[#ccff00]"
+                                            className="bg-primary text-primary-foreground font-bold hover:bg-primary/90"
                                         >
                                             {currentQuestion === QUESTIONS.length - 1 ? "Finish Quiz" : "Next Question →"}
                                         </Button>
@@ -415,9 +485,9 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
                             </Card>
 
                             {showFeedback && (
-                                <Card className={`border-2 ${isCorrect ? "border-green-500 bg-green-500/10" : "border-red-500 bg-red-500/10"} backdrop-blur-xl mb-6`}>
+                                <Card className={`border-2 ${isCorrect ? "border-green-800 dark:border-green-600 bg-green-50 dark:bg-green-950/30" : "border-red-800 dark:border-red-600 bg-red-50 dark:bg-red-950/30"} backdrop-blur-xl mb-6`}>
                                     <CardHeader>
-                                        <CardTitle className={`flex items-center gap-2 ${isCorrect ? "text-green-400" : "text-red-400"}`}>
+                                        <CardTitle className={`flex items-center gap-2 ${isCorrect ? "text-green-800 dark:text-green-600" : "text-red-800 dark:text-red-600"}`}>
                                             {isCorrect ? (
                                                 <>
                                                     <CheckCircle className="h-6 w-6" />
@@ -432,7 +502,7 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent className="space-y-4">
-                                        <div className="text-[#f0ff00]">
+                                        <div className="text-foreground">
                                             <p className="font-semibold mb-2">Explanation:</p>
                                             <p>{question.explanation}</p>
                                         </div>
@@ -441,7 +511,7 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             onClick={() => isOpeningExternalLinkRef.current = true}
-                                            className="inline-flex items-center gap-2 text-[#ffff00] hover:text-[#ccff00] underline"
+                                            className="inline-flex items-center gap-2 text-primary hover:opacity-80 underline"
                                         >
                                             <ExternalLink className="h-4 w-4" />
                                             {question.resourceTitle}
@@ -455,19 +525,19 @@ export default function QuizPlayPage({ params }: QuizPlayPageProps) {
             </main>
 
             <AlertDialog open={showWarning} onOpenChange={setShowWarning}>
-                <AlertDialogContent className="bg-black border-[#ffff00]/30">
+                <AlertDialogContent className="bg-card border-border">
                     <AlertDialogHeader>
-                        <AlertDialogTitle className="text-[#ffff00]">
+                        <AlertDialogTitle className="text-primary">
                             ⚠️ Academic Integrity Violation
                         </AlertDialogTitle>
-                        <AlertDialogDescription className="text-[#f0ff00] whitespace-pre-line">
+                        <AlertDialogDescription className="text-foreground whitespace-pre-line">
                             {warningMessage}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogAction
                             onClick={() => setShowWarning(false)}
-                            className="bg-gradient-to-r from-[#ffff00] to-[#f0ff00] text-black font-bold"
+                            className="bg-primary text-primary-foreground font-bold"
                         >
                             I Understand
                         </AlertDialogAction>

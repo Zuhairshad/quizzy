@@ -137,19 +137,19 @@ export default function QuizPlayer({ quizId, quizTitle, questions, durationMinut
                         <Card className={`border-slate-700 ${timer.isVeryLowTime
                                 ? 'bg-red-950/30 border-red-700'
                                 : timer.isLowTime
-                                    ? 'bg-yellow-950/30 border-yellow-700'
+                                    ? 'bg-primary/20 border-primary/50'
                                     : 'bg-slate-800/30'
                             } backdrop-blur`}>
                             <CardContent className="py-3 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <Clock className={`w-5 h-5 ${timer.isVeryLowTime ? 'text-red-400' : timer.isLowTime ? 'text-yellow-400' : 'text-slate-400'
+                                    <Clock className={`w-5 h-5 ${timer.isVeryLowTime ? 'text-red-400' : timer.isLowTime ? 'text-primary' : 'text-slate-400'
                                         }`} />
                                     <span className="text-sm text-slate-300">Time Remaining:</span>
                                 </div>
                                 <Badge className={`text-lg font-mono ${timer.isVeryLowTime
                                         ? 'bg-red-900 text-red-200 border-red-700'
                                         : timer.isLowTime
-                                            ? 'bg-yellow-900 text-yellow-200 border-yellow-700'
+                                            ? 'bg-primary/30 text-primary border-primary/50'
                                             : 'bg-slate-700 text-white border-slate-600'
                                     }`}>
                                     {timer.formattedTime}
